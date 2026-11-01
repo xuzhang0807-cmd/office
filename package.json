@@ -1,0 +1,25 @@
+{
+  "name": "office-portal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "自建 Web 在线办公门户：DOCX / XLSX / PPTX / PDF 在线编辑 + 素材库 + muse2api AI 网关",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "node --watch server/src/index.js",
+    "dev:web": "npm --workspace web run dev",
+    "build": "npm --workspace web run build",
+    "start": "node server/src/index.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "test:e2e": "node --test tests/e2e/*.test.mjs",
+    "lint": "node scripts/lint.mjs",
+    "check": "npm run lint && npm test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
