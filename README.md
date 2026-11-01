@@ -13,12 +13,14 @@
 
 | 模块 | 在线编辑 | 导入 | 导出 | AI |
 | --- | --- | --- | --- | --- |
-| DOCX | 富文本（标题/列表/表格/图片/链接/对齐/引用） | `.docx` | `.docx` / `.txt` | 润色、摘要、扩写、翻译、插入结果 |
-| XLSX | 网格编辑、公式引擎、样式、多工作表 | `.xlsx` | `.xlsx` / `.csv` | 公式生成、表格分析 |
-| PPTX | 幻灯片增删改、文本框/色块/表格/图片、主题、备注 | `.pptx` | `.pptx` | 主题→整套大纲→一键成稿、配图 |
-| PDF | 渲染预览、缩放 | `.pdf` | `.pdf` | 引用选中文字做摘要 |
+| DOCX | 富文本（标题/列表/表格/图片/链接/对齐/引用） | `.docx` | `.docx` / `.pdf` / `.txt` | 润色、摘要、扩写、翻译、插入结果 |
+| XLSX | 网格编辑、公式引擎、样式、多工作表 | `.xlsx` | `.xlsx` / `.pdf` / `.csv` | 公式生成、表格分析 |
+| PPTX | 幻灯片增删改、文本框/色块/表格/图片、主题、备注 | `.pptx` | `.pptx` / `.pdf` | 主题→整套大纲→一键成稿、配图 |
+| PDF | 渲染预览、缩放、旋转/删页/提取/水印/合并/重排/元数据 | `.pdf` | `.pdf` | 引用选中文字做摘要 |
 | 素材库 | 上传/检索/标签/改名/删除 | 图片 | 直链 / Markdown 引用 | 文生图，结果自动入库 |
 | 模板库 | 12 套内置模板（合同/周报/简历/通知/预算/库存/进度/BP/汇报/课件/PDF） | — | 原文件下载 / 在线编辑 | — |
+
+**任意格式 → PDF 由内置排版引擎完成**（`server/src/convert/topdf.js`）：纯 JS + pdf-lib，产出矢量文字（可选中、可搜索），不依赖 LibreOffice、不需要额外容器、冷启动 0 秒。DOCX 支持标题层级/列表/表格/引用/代码/图片，XLSX 支持多表/列宽/底色/深色表头自动反白，PPTX 按幻灯片逐页等比缩放并保留背景与页码。
 
 公式引擎支持：`SUM AVERAGE MIN MAX COUNT COUNTA COUNTIF SUMIF AVERAGEIF IF IFS AND OR NOT ROUND ROUNDUP ROUNDDOWN ABS SQRT POWER MOD INT CEILING FLOOR PI EXP LN LOG LEN LEFT RIGHT MID UPPER LOWER TRIM CONCAT CONCATENATE TEXTJOIN TEXT VALUE TODAY NOW YEAR MONTH DAY VLOOKUP HLOOKUP INDEX MATCH ISBLANK ISNUMBER ISTEXT IFERROR`，含 `#DIV/0! #NAME? #REF! #ERROR #CIRCULAR` 错误传播与循环引用保护。
 
@@ -38,7 +40,7 @@ office/
 │       ├── ai.js           muse2api 网关、配额、用量日志、大纲修复
 │       ├── seed.js         内置模板（代码生成，无二进制入库）
 │       ├── http.js         multipart / JSON body / 响应助手
-│       ├── convert/        docx / xlsx / pptx / pdf / html / fonts
+│       ├── convert/        docx / xlsx / pptx / pdf / topdf / html / fonts
 │       └── routes/         auth · documents · assets · ai
 ├── web/                    Vite + React 前端
 │   └── src/
@@ -169,7 +171,7 @@ npm run test:e2e               # 浏览器 E2E（真实 Chromium）
 
 覆盖点：注册/登录/会话、游客隔离、四件套 CRUD 与**往返导入导出**、PDF 页操作、素材所有权与标签作用域、模板渲染、AI 配额与上游失败降级、管理权限、路径穿越、浏览器端编辑与下载。
 
-当前状态：**53 项单测 + 7 项 E2E 全绿**。
+当前状态：**66 项单测 + 8 项 E2E 全绿**。
 
 ---
 
@@ -207,4 +209,4 @@ NEXT_PUBLIC_OFFICE_URL=https://office.example.com
 - AI Key 只在服务端；配额按天在服务端记账，浏览器伪造请求无效
 - CSP 默认只允许同源脚本/样式/图片，`connect-src 'self'`
 
-已知限制：DOCX→PDF 需要外部渲染引擎（未内置 LibreOffice）；PPTX 导入为结构化还原（复杂动画、母版会简化）；PDF 编辑器不做内容级文字编辑，只做页级操作与预览。
+已知限制：PDF 排版引擎不处理分栏、脚注、浮动图片与自动目录，表格不做跨页表头重复；PPTX 导入为结构化还原（复杂动画、母版会简化）；PDF 编辑器不做内容级文字编辑，只做页级操作与预览。

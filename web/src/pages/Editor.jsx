@@ -8,8 +8,15 @@ import XlsxEditor from '../editors/XlsxEditor.jsx';
 import PptxEditor from '../editors/PptxEditor.jsx';
 import PdfEditor from '../editors/PdfEditor.jsx';
 import { AiPanel, AssetPanel } from '../components/AiPanel.jsx';
+import { recalcSheet } from '../lib/formula.js';
 
 const AUTOSAVE_MS = 1500;
+
+/** 导出 PDF 前把公式结果写进模型，避免 pdf 里出现空白公式格。 */
+function recalcModel(model) {
+  if (!model || !Array.isArray(model.sheets)) return model;
+  return { ...model, sheets: model.sheets.map((sheet) => recalcSheet(sheet)) };
+}
 
 export default function EditorPage({ id }) {
   const toast = useToast();
@@ -124,7 +131,9 @@ export default function EditorPage({ id }) {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (pendingRef.current) await flush();
     try {
-      await api.download(`/api/documents/${id}/export`, { format, model, filename: title }, `${title}.${format}`);
+      // 导出前先把模型里的公式重算一遍，PDF 才能拿到数值而不是空白
+      const payload = format === 'pdf' && doc?.kind === 'xlsx' ? recalcModel(model) : model;
+      await api.download(`/api/documents/${id}/export`, { format, model: payload, filename: title }, `${title}.${format}`);
       toast.success('导出已开始');
     } catch (err) {
       toast.error(err.message);
@@ -199,6 +208,11 @@ export default function EditorPage({ id }) {
         )}
         {doc.kind === 'xlsx' && (
           <button className="btn sm" onClick={() => exportFile('csv')}>导出 CSV</button>
+        )}
+        {doc.kind !== 'pdf' && (
+          <button className="btn sm" onClick={() => exportFile('pdf')} title="按当前内容排版成 PDF">
+            导出 PDF
+          </button>
         )}
         {doc.kind === 'pdf' && (
           <a className="btn sm" href={`/api/documents/${id}/raw`} target="_blank" rel="noreferrer">原始 PDF</a>

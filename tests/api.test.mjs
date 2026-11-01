@@ -293,6 +293,53 @@ describe('文档 CRUD 与四件套导出', () => {
     assert.equal(gone.status, 404);
   });
 
+  it('四件套都能导出 PDF（纯 JS 排版，不依赖 LibreOffice）', async () => {
+    const cases = [
+      { kind: 'docx', model: { version: 1, html: '<h1>标题</h1><p>正文</p><table><tr><th>A</th></tr><tr><td>1</td></tr></table>' } },
+      { kind: 'xlsx', model: { version: 1, sheets: [{ name: 'S', rows: [[{ v: 'A' }, { v: 1 }], [{ v: 'B' }, { v: 2 }]] }] } },
+      {
+        kind: 'pptx',
+        model: {
+          version: 1,
+          width: 1280,
+          height: 720,
+          slides: [{ background: '#0F172A', elements: [{ type: 'text', x: 80, y: 80, w: 900, h: 120, text: '标题', role: 'title', size: 44, color: '#F8FAFC', bold: true }] }],
+        },
+      },
+    ];
+    for (const item of cases) {
+      const created = await c.post('/api/documents', { kind: item.kind, title: `转 PDF ${item.kind}` });
+      assert.equal(created.status, 201, created.text);
+      const id = created.body.data.document.id;
+      const res = await c.raw(`/api/documents/${id}/export`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ format: 'pdf', model: item.model }),
+      });
+      assert.equal(res.status, 200, `${item.kind} 导出 PDF 失败`);
+      assert.equal(res.headers.get('content-type'), 'application/pdf');
+      const buffer = Buffer.from(await res.arrayBuffer());
+      assert.equal(buffer.slice(0, 5).toString('latin1'), '%PDF-', `${item.kind} 不是 PDF`);
+      assert.ok(buffer.length > 800, `${item.kind} PDF 过小：${buffer.length}`);
+    }
+  });
+
+  it('PDF 文档自身导出保持字节一致', async () => {
+    const created = await c.post('/api/documents', { kind: 'pdf', title: '原件' });
+    const id = created.body.data.document.id;
+    const original = await c.raw(`/api/documents/${id}/raw`);
+    const exported = await c.raw(`/api/documents/${id}/export`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ format: 'pdf' }),
+    });
+    assert.equal(exported.status, 200);
+    const a = Buffer.from(await original.arrayBuffer());
+    const b = Buffer.from(await exported.arrayBuffer());
+    assert.equal(a.length, b.length);
+    assert.ok(a.equals(b));
+  });
+
   it('拒绝非白名单类型与超大 JSON', async () => {
     const bad = await c.post('/api/documents', { kind: 'exe' });
     assert.equal(bad.status, 400);

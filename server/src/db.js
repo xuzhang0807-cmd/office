@@ -334,15 +334,8 @@ export function getAsset(id) {
   return db.prepare(`SELECT ${assetColumns} FROM assets WHERE id = ? AND deleted_at IS NULL`).get(id);
 }
 
-export function findAssetBySha(ownerId, sha) {
-  return db
-    .prepare(`SELECT ${assetColumns} FROM assets WHERE sha256 = ? AND owner_id IS ? AND deleted_at IS NULL LIMIT 1`)
-    .get(sha, ownerId || null);
-}
-
-export function listAssets({ ownerId, guestKey = null, kind, query, tag, limit = 60, offset = 0, includeShared = true }) {
-  const where = ['deleted_at IS NULL'];
-  const params = [];
+/** 素材可见范围：本人 + 公共；游客看自己的 + 公共。列表和标签统计必须用同一套。 */
+function assetScope(where, params, { ownerId, guestKey = null, includeShared = true }) {
   if (ownerId) {
     if (includeShared) {
       where.push('(owner_id = ? OR owner_id IS NULL)');
@@ -357,6 +350,13 @@ export function listAssets({ ownerId, guestKey = null, kind, query, tag, limit =
   } else {
     where.push('owner_id IS NULL AND guest_key IS NULL');
   }
+  return where;
+}
+
+export function listAssets({ ownerId, guestKey = null, kind, query, tag, limit = 60, offset = 0, includeShared = true }) {
+  const where = ['deleted_at IS NULL'];
+  const params = [];
+  assetScope(where, params, { ownerId, guestKey, includeShared });
   if (kind) {
     where.push('kind = ?');
     params.push(kind);
@@ -380,28 +380,11 @@ export function listAssets({ ownerId, guestKey = null, kind, query, tag, limit =
   return { items, total };
 }
 
-export function listAllAssets({ limit = 200 } = {}) {
-  return db.prepare(`SELECT ${assetColumns} FROM assets WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ?`).all(limit);
-}
-
-/** 标签统计必须与列表同作用域，否则会把别人的素材标签暴露出来。 */
+/** 标签统计必须与列表同作用域，否则会把别人的私有标签暴露在筛选栏里。 */
 export function listAssetTags({ ownerId, guestKey = null, includeShared = true } = {}) {
   const where = ['deleted_at IS NULL'];
   const params = [];
-  if (ownerId) {
-    if (includeShared) {
-      where.push('(owner_id = ? OR owner_id IS NULL)');
-      params.push(ownerId);
-    } else {
-      where.push('owner_id = ?');
-      params.push(ownerId);
-    }
-  } else if (guestKey) {
-    where.push('(guest_key = ? OR (owner_id IS NULL AND guest_key IS NULL))');
-    params.push(guestKey);
-  } else {
-    where.push('owner_id IS NULL AND guest_key IS NULL');
-  }
+  assetScope(where, params, { ownerId, guestKey, includeShared });
   const rows = db.prepare(`SELECT tags FROM assets WHERE ${where.join(' AND ')}`).all(...params);
   const counts = new Map();
   for (const row of rows) {
@@ -414,10 +397,6 @@ export function listAssetTags({ ownerId, guestKey = null, includeShared = true }
 
 export function deleteAsset(id) {
   db.prepare('UPDATE assets SET deleted_at = ? WHERE id = ?').run(now(), id);
-}
-
-export function assetCount(ownerId) {
-  return db.prepare('SELECT COUNT(*) AS n FROM assets WHERE deleted_at IS NULL AND owner_id IS ?').get(ownerId || null).n;
 }
 
 /* ---------------------------- templates ------------------------------ */

@@ -153,4 +153,20 @@ describe('浏览器端到端', () => {
     const head = fs.readFileSync(target).slice(0, 5).toString('latin1');
     assert.ok(head.startsWith('PK') || head.startsWith('%PDF-'), `文件头异常：${head}`);
   });
+
+  it('DOCX 可直接导出 PDF（浏览器内触发真实下载）', async () => {
+    await page.goto(base, { waitUntil: 'networkidle' });
+    await page.click('.doc-item:first-child');
+    await page.waitForSelector('.editor-top');
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 25000 }),
+      page.click('button:has-text("导出 PDF")'),
+    ]);
+    const target = path.join(TMP, download.suggestedFilename());
+    await download.saveAs(target);
+    const buffer = fs.readFileSync(target);
+    assert.equal(buffer.slice(0, 5).toString('latin1'), '%PDF-');
+    assert.ok(buffer.length > 1000, `PDF 过小：${buffer.length}`);
+    assert.match(download.suggestedFilename(), /\.pdf$/);
+  });
 });

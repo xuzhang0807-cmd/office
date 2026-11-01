@@ -3,10 +3,11 @@ import { config } from '../config.js';
 import * as store from '../db.js';
 import * as blobs from '../blobs.js';
 import { asyncRoute, multipart, ok, sendBuffer } from '../http.js';
-import { HttpError, bad, notFound, safeJson, slugify, truncate, uid, extensionOf } from '../util.js';
+import { HttpError, bad, notFound, safeJson, slugify, truncate } from '../util.js';
 import { docxBufferToHtml, docxBufferToText, htmlToDocxBuffer } from '../convert/docx.js';
 import { modelBounds, modelToCsv, modelToXlsxBuffer, xlsxBufferToModel } from '../convert/xlsx.js';
 import { blankModel, modelToPptxBuffer, outlineToModel, pptxBufferToModel } from '../convert/pptx.js';
+import { htmlToPdfBuffer, pptxModelToPdfBuffer, xlsxModelToPdfBuffer } from '../convert/topdf.js';
 import {
   createPdf,
   deletePages,
@@ -281,7 +282,8 @@ documentsRouter.post(
     if (!model) throw bad('缺少 model 字段', 'NO_MODEL');
     if (doc.kind === 'docx') {
       if (format === 'pdf') {
-        throw new HttpError(501, 'DOCX→PDF 需要外部渲染服务（本版本未内置 LibreOffice）', 'UNSUPPORTED');
+        const buffer = await htmlToPdfBuffer(model.html || '', { title: doc.title });
+        return sendBuffer(res, buffer, { mime: 'application/pdf', filename: `${filenameBase}.pdf`, download: true });
       }
       if (format === 'txt') {
         const text = String(model.html || '').replace(/<[^>]+>/g, '');
@@ -295,10 +297,18 @@ documentsRouter.post(
         const csv = modelToCsv(model, Number(req.body?.sheetIndex) || 0);
         return sendBuffer(res, Buffer.from(`\uFEFF${csv}`, 'utf8'), { mime: 'text/csv; charset=utf-8', filename: `${filenameBase}.csv`, download: true });
       }
+      if (format === 'pdf') {
+        const buffer = await xlsxModelToPdfBuffer(model, { title: doc.title });
+        return sendBuffer(res, buffer, { mime: 'application/pdf', filename: `${filenameBase}.pdf`, download: true });
+      }
       const buffer = await modelToXlsxBuffer(model);
       return sendBuffer(res, buffer, { mime: blobs.mimeForExt('xlsx'), filename: `${filenameBase}.xlsx`, download: true });
     }
     if (doc.kind === 'pptx') {
+      if (format === 'pdf') {
+        const buffer = await pptxModelToPdfBuffer(model, { title: doc.title });
+        return sendBuffer(res, buffer, { mime: 'application/pdf', filename: `${filenameBase}.pdf`, download: true });
+      }
       const buffer = await modelToPptxBuffer(model, { title: doc.title });
       return sendBuffer(res, buffer, { mime: blobs.mimeForExt('pptx'), filename: `${filenameBase}.pptx`, download: true });
     }
