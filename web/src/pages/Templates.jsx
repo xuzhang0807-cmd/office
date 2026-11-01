@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, KIND_META } from '../lib/api.js';
 import { useToast } from '../lib/toast.jsx';
-import { navigate } from '../App.jsx';
+import { navigate } from '../lib/router.js';
 
 const KIND_FILTERS = [
   { value: '', label: '全部' },

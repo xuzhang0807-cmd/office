@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSession } from '../lib/session.jsx';
 import { useToast } from '../lib/toast.jsx';
-import { navigate } from '../App.jsx';
+import { navigate } from '../lib/router.js';
 
 export default function LoginPage() {
   const { login, register, user, site } = useSession();

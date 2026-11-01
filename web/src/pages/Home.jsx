@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, formatBytes, formatTime, KIND_META } from '../lib/api.js';
 import { useSession } from '../lib/session.jsx';
 import { useToast } from '../lib/toast.jsx';
-import { navigate } from '../App.jsx';
+import { navigate } from '../lib/router.js';
 
 const KINDS = ['docx', 'xlsx', 'pptx', 'pdf'];
 

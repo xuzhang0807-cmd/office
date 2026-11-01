@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSession } from './lib/session.jsx';
+import { parseHash } from './lib/router.js';
 import HomePage from './pages/Home.jsx';
 import LoginPage from './pages/Login.jsx';
 import AssetsPage from './pages/Assets.jsx';
@@ -7,19 +8,6 @@ import TemplatesPage from './pages/Templates.jsx';
 import AdminPage from './pages/Admin.jsx';
 import EditorPage from './pages/Editor.jsx';
 import TopBar from './components/TopBar.jsx';
-
-/** 极简 hash 路由：不引第三方 router，部署到任意子路径都能用。 */
-function parseHash() {
-  const raw = window.location.hash.replace(/^#/, '') || '/';
-  const [path, queryString] = raw.split('?');
-  const params = new URLSearchParams(queryString || '');
-  return { path: path || '/', params };
-}
-
-export function navigate(path, params) {
-  const search = params ? `?${new URLSearchParams(params).toString()}` : '';
-  window.location.hash = `${path}${search}`;
-}
 
 export default function App() {
   const [route, setRoute] = useState(parseHash);

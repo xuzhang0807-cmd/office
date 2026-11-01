@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSession } from '../lib/session.jsx';
-import { navigate } from '../App.jsx';
+import { navigate } from '../lib/router.js';
 
 const NAV = [
   { path: '/', label: '工作台' },

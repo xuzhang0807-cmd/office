@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, KIND_META } from '../lib/api.js';
 import { useSession } from '../lib/session.jsx';
 import { useToast } from '../lib/toast.jsx';
-import { navigate } from '../App.jsx';
+import { navigate } from '../lib/router.js';
 import DocxEditor from '../editors/DocxEditor.jsx';
 import XlsxEditor from '../editors/XlsxEditor.jsx';
 import PptxEditor from '../editors/PptxEditor.jsx';
