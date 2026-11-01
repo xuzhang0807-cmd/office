@@ -324,6 +324,40 @@ describe('文档 CRUD 与四件套导出', () => {
     }
   });
 
+  it('四件套都能提取纯文本（PDF 走 pdf.js 文字层）', async () => {
+    const docx = await c.post('/api/documents', { kind: 'docx', title: '文本提取' });
+    await c.put(`/api/documents/${docx.body.data.document.id}`, {
+      model: { version: 1, html: '<h1>标题甲</h1><p>正文乙</p>' },
+    });
+    const docxText = await c.get(`/api/documents/${docx.body.data.document.id}/text`);
+    assert.equal(docxText.status, 200);
+    assert.match(docxText.body.data.text, /标题甲/);
+
+    const xlsx = await c.post('/api/documents', { kind: 'xlsx', title: '表格文本' });
+    await c.put(`/api/documents/${xlsx.body.data.document.id}`, {
+      model: { version: 1, sheets: [{ name: 'S', rows: [[{ v: 'A1' }, { v: 'B1' }]] }] },
+    });
+    const xlsxText = await c.get(`/api/documents/${xlsx.body.data.document.id}/text`);
+    assert.match(xlsxText.body.data.text, /A1,B1/);
+
+    const pptx = await c.post('/api/documents', { kind: 'pptx', title: '演示文本' });
+    await c.put(`/api/documents/${pptx.body.data.document.id}`, {
+      model: {
+        version: 1,
+        slides: [{ elements: [{ type: 'text', text: '封面标题' }] }],
+      },
+    });
+    const pptxText = await c.get(`/api/documents/${pptx.body.data.document.id}/text`);
+    assert.match(pptxText.body.data.text, /封面标题/);
+
+    // 新建 PDF 自带中文标题，pdf.js 应能读回来
+    const pdf = await c.post('/api/documents', { kind: 'pdf', title: 'PDF 文本层' });
+    const pdfText = await c.get(`/api/documents/${pdf.body.data.document.id}/text`);
+    assert.equal(pdfText.status, 200, pdfText.text);
+    assert.match(pdfText.body.data.text, /PDF 文本层/);
+    assert.equal(pdfText.body.data.pageCount, 1);
+  });
+
   it('PDF 文档自身导出保持字节一致', async () => {
     const created = await c.post('/api/documents', { kind: 'pdf', title: '原件' });
     const id = created.body.data.document.id;

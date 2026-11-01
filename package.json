@@ -1,7 +1,7 @@
 {
   "name": "office-portal",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "自建 Web 在线办公门户：DOCX / XLSX / PPTX / PDF 在线编辑 + 素材库 + muse2api AI 网关",
   "workspaces": [

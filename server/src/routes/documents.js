@@ -8,6 +8,7 @@ import { docxBufferToHtml, docxBufferToText, htmlToDocxBuffer } from '../convert
 import { modelBounds, modelToCsv, modelToXlsxBuffer, xlsxBufferToModel } from '../convert/xlsx.js';
 import { blankModel, modelToPptxBuffer, outlineToModel, pptxBufferToModel } from '../convert/pptx.js';
 import { htmlToPdfBuffer, pptxModelToPdfBuffer, xlsxModelToPdfBuffer } from '../convert/topdf.js';
+import { pdfBufferToPlainText } from '../convert/pdftext.js';
 import {
   createPdf,
   deletePages,
@@ -365,10 +366,34 @@ documentsRouter.get(
   '/:id/text',
   asyncRoute(async (req, res) => {
     const doc = loadDoc(req);
-    if (doc.kind !== 'docx') throw bad('仅 DOCX 提供纯文本提取', 'BAD_KIND');
-    const model = safeJson(blobs.readBlob(doc.blob_key).toString('utf8'), { html: '' });
-    const text = String(model.html || '').replace(/<[^>]+>/g, '\n').replace(/\n{2,}/g, '\n').trim();
-    ok(res, { text: truncate(text, 20000) });
+    if (doc.kind === 'docx') {
+      const model = safeJson(blobs.readBlob(doc.blob_key).toString('utf8'), { html: '' });
+      const text = String(model.html || '').replace(/<[^>]+>/g, '\n').replace(/\n{2,}/g, '\n').trim();
+      return ok(res, { text: truncate(text, 20000), pageCount: null });
+    }
+    if (doc.kind === 'xlsx') {
+      const model = safeJson(blobs.readBlob(doc.blob_key).toString('utf8'), null);
+      const text = modelToCsv(model, Number(req.query.sheet) || 0);
+      return ok(res, { text: truncate(text, 20000), pageCount: null });
+    }
+    if (doc.kind === 'pptx') {
+      const model = safeJson(blobs.readBlob(doc.blob_key).toString('utf8'), { slides: [] });
+      const text = (model.slides || [])
+        .map((slide, index) =>
+          [`第 ${index + 1} 页`, ...(slide.elements || []).filter((el) => el.type === 'text').map((el) => el.text)]
+            .filter(Boolean)
+            .join('\n'),
+        )
+        .join('\n\n');
+      return ok(res, { text: truncate(text, 20000), pageCount: (model.slides || []).length });
+    }
+    if (doc.kind === 'pdf') {
+      // PDF 没有可编辑模型，只能从字节里抽文字层（pdf-lib 读不了，交给 pdf.js）
+      const buffer = blobs.readBlob(doc.blob_key);
+      const { text, pageCount } = await pdfBufferToPlainText(buffer);
+      return ok(res, { text: truncate(text, 20000), pageCount });
+    }
+    throw bad('该类型不支持文本提取', 'BAD_KIND');
   }),
 );
 

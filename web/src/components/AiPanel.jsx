@@ -12,7 +12,7 @@ const TASKS = [
   { id: 'analyze', label: '分析' },
 ];
 
-export function AiPanel({ kind, getSelection, onInsert, onOutline }) {
+export function AiPanel({ kind, getSelection, onInsert, onOutline, documentId }) {
   const { user, quota, refresh } = useSession();
   const toast = useToast();
   const [task, setTask] = useState(kind === 'xlsx' ? 'formula' : 'polish');
@@ -23,6 +23,7 @@ export function AiPanel({ kind, getSelection, onInsert, onOutline }) {
   const [topic, setTopic] = useState('');
   const [pages, setPages] = useState(8);
   const [outlineBusy, setOutlineBusy] = useState(false);
+  const [pulling, setPulling] = useState(false);
 
   useEffect(() => {
     setTask(kind === 'xlsx' ? 'formula' : 'polish');
@@ -42,6 +43,25 @@ export function AiPanel({ kind, getSelection, onInsert, onOutline }) {
       toast.error(error.message);
     }
   }, [getSelection, toast]);
+
+  /** PDF 的 canvas 没有可选文字层，选中拿不到内容，所以从服务端抽全文。 */
+  const pullWholeDocument = useCallback(async () => {
+    if (!documentId) return;
+    setPulling(true);
+    try {
+      const data = await api.get(`/api/documents/${documentId}/text`);
+      if (!data.text) {
+        toast.info('这份文件里没有可提取的文字（可能是扫描件）');
+        return;
+      }
+      setText(data.text);
+      toast.success(`已载入 ${data.text.length} 字`);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setPulling(false);
+    }
+  }, [documentId, toast]);
 
   const run = async () => {
     if (!text.trim()) {
@@ -139,6 +159,11 @@ export function AiPanel({ kind, getSelection, onInsert, onOutline }) {
           <button className="btn sm" onClick={pullSelection} disabled={!getSelection}>
             取选中内容
           </button>
+          {documentId && (
+            <button className="btn sm ghost" onClick={pullWholeDocument} disabled={pulling}>
+              {pulling ? '载入中…' : '载入全文'}
+            </button>
+          )}
           <span className="small muted">{text.length} 字</span>
         </div>
         <textarea

@@ -249,6 +249,7 @@ export default function EditorPage({ id }) {
               {tab === 'ai' && (
                 <AiPanel
                   kind={doc.kind}
+                  documentId={id}
                   getSelection={getSelection}
                   onInsert={doc.kind === 'pdf' ? undefined : insertFromAi}
                   onOutline={applyOutline}
