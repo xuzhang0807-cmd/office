@@ -15,6 +15,15 @@ import { seedTemplates } from './seed.js';
 
 ensureDirs();
 
+/** 版本号以 package.json 为唯一来源，避免多处手改。 */
+const VERSION = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(config.root, 'package.json'), 'utf8')).version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
+
 export function createApp({ serveStatic = true } = {}) {
   const app = express();
   app.set('trust proxy', 1);
@@ -36,7 +45,7 @@ export function createApp({ serveStatic = true } = {}) {
   app.use(attachIdentity);
 
   app.get('/api/health', (req, res) => {
-    res.json({ ok: true, data: { status: 'up', time: Date.now(), version: process.env.OFFICE_VERSION || '0.1.0' } });
+    res.json({ ok: true, data: { status: 'up', time: Date.now(), version: VERSION } });
   });
 
   app.use('/api/auth', authRouter);
@@ -96,7 +105,10 @@ export async function start({ port = config.port, host = config.host } = {}) {
   return new Promise((resolve) => {
     const server = app.listen(port, host, () => {
       const actual = server.address();
-      console.log(`[office] listening on http://${host}:${actual.port}  templates=${seeded.created || 'cached'} stats=${JSON.stringify(stats())}`);
+      const failed = seeded.failed?.length ? ` failed=${seeded.failed.length}` : '';
+      console.log(
+        `[office] v${VERSION} listening on http://${host}:${actual.port} templates=${seeded.created || 'cached'}${failed} stats=${JSON.stringify(stats())}`,
+      );
       resolve(server);
     });
   });
@@ -104,6 +116,16 @@ export async function start({ port = config.port, host = config.host } = {}) {
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
 if (isMain) {
+  // 某些原生/编码库会在异步队列里抛错（try/catch 接不住）。记日志后主动退出，
+  // 交给 restart 策略拉起，好过带着不确定状态继续服务或让请求永久挂起。
+  process.on('uncaughtException', (error) => {
+    console.error('[office] uncaughtException:', error?.stack || error);
+    process.exit(1);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('[office] unhandledRejection:', reason);
+    process.exit(1);
+  });
   start().catch((error) => {
     console.error('[office] 启动失败', error);
     process.exit(1);

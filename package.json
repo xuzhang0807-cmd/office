@@ -17,9 +17,13 @@
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "test:e2e": "node --test tests/e2e/*.test.mjs",
     "lint": "node scripts/lint.mjs",
-    "check": "npm run lint && npm test"
+    "check": "npm run lint && npm test",
+    "deploy:blog": "node deploy/patch-blog.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
   }
 }

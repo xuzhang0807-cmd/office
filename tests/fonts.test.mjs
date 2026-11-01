@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { asciiSafe, extractSfntFromTtc, fontStatus, resolveFontPath } from '../server/src/convert/fonts.js';
+import { asciiSafe, extractSfntFromTtc, fontFlavor, fontStatus, resolveFont, resolveFontPath } from '../server/src/convert/fonts.js';
 
 function fakeTtc() {
   // 构造一个最小 TTC：头 + 一个表目录 + 一个 dummy 表
@@ -51,6 +51,28 @@ describe('字体探测', () => {
     const status = fontStatus();
     assert.equal(typeof status.available, 'boolean');
     assert.equal(status.available, Boolean(path));
+  });
+
+  it('只对 TrueType 做 subset（CFF 会打挂 fontkit）', () => {
+    const font = resolveFont();
+    if (!font) return;
+    assert.ok(['truetype', 'cff', 'unknown'].includes(font.flavor));
+    // 只要选了 CFF，就必须是能整字体嵌入的小字号，否则应回退到无字体
+    if (font.flavor === 'cff') assert.ok(font.buffer.length <= 8 * 1024 * 1024);
+  });
+
+  it('识别 sfnt 轮廓类型', () => {
+    const glyf = Buffer.alloc(12 + 16);
+    glyf.writeUInt32BE(0x00010000, 0);
+    glyf.writeUInt16BE(1, 4);
+    glyf.write('glyf', 12, 'latin1');
+    assert.equal(fontFlavor(glyf), 'truetype');
+
+    const cff = Buffer.alloc(12 + 16);
+    cff.writeUInt32BE(0x4f54544f, 0);
+    cff.writeUInt16BE(1, 4);
+    cff.write('CFF ', 12, 'latin1');
+    assert.equal(fontFlavor(cff), 'cff');
   });
 
   it('ASCII 兜底只替换无法编码字符', () => {

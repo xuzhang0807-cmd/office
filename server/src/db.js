@@ -384,6 +384,34 @@ export function listAllAssets({ limit = 200 } = {}) {
   return db.prepare(`SELECT ${assetColumns} FROM assets WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ?`).all(limit);
 }
 
+/** 标签统计必须与列表同作用域，否则会把别人的素材标签暴露出来。 */
+export function listAssetTags({ ownerId, guestKey = null, includeShared = true } = {}) {
+  const where = ['deleted_at IS NULL'];
+  const params = [];
+  if (ownerId) {
+    if (includeShared) {
+      where.push('(owner_id = ? OR owner_id IS NULL)');
+      params.push(ownerId);
+    } else {
+      where.push('owner_id = ?');
+      params.push(ownerId);
+    }
+  } else if (guestKey) {
+    where.push('(guest_key = ? OR (owner_id IS NULL AND guest_key IS NULL))');
+    params.push(guestKey);
+  } else {
+    where.push('owner_id IS NULL AND guest_key IS NULL');
+  }
+  const rows = db.prepare(`SELECT tags FROM assets WHERE ${where.join(' AND ')}`).all(...params);
+  const counts = new Map();
+  for (const row of rows) {
+    for (const tag of String(row.tags || '').split(',').filter(Boolean)) {
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([name, count]) => ({ name, count }));
+}
+
 export function deleteAsset(id) {
   db.prepare('UPDATE assets SET deleted_at = ? WHERE id = ?').run(now(), id);
 }

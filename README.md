@@ -95,7 +95,10 @@ docker compose logs -f office
 - 数据在命名卷 `data`（SQLite + 内容寻址 blob）
 - 默认只监听 `127.0.0.1:32110`，公网由宿主机 nginx 暴露，配置见 `deploy/nginx.office.conf`
 - 容器只读根文件系统、`cap_drop: ALL`、`no-new-privileges`
-- 镜像内置 `fonts-noto-cjk`，PDF 中文水印与标题可正常嵌入
+- 镜像内置 `fonts-wqy-zenhei`（TrueType），PDF 中文水印与标题可正常嵌入。
+  **不要换成 `fonts-noto-cjk`**：那是 CFF 轮廓，fontkit 的 `CFFSubset` 在 subset 时
+  会在异步队列里抛 `RangeError` 直接打挂进程（`try/catch` 接不住）。
+- 容器与 muse2api 共用 `muse2api_default` 网络，`OFFICE_MUSE_BASE` 默认 `http://muse2api:18610`
 
 ---
 
@@ -159,24 +162,39 @@ docker compose logs -f office
 ## 7. 测试
 
 ```bash
-npm test                       # API + 转换 + 公式（node:test）
+npm test                       # API + 转换 + 公式 + 字体（node:test）
 npx playwright install chromium
 npm run test:e2e               # 浏览器 E2E（真实 Chromium）
 ```
 
-覆盖点：注册/登录/会话、游客隔离、四件套 CRUD 与**往返导入导出**、PDF 页操作、素材所有权、模板渲染、AI 配额与上游失败降级、管理权限、路径穿越、浏览器端编辑与下载。
+覆盖点：注册/登录/会话、游客隔离、四件套 CRUD 与**往返导入导出**、PDF 页操作、素材所有权与标签作用域、模板渲染、AI 配额与上游失败降级、管理权限、路径穿越、浏览器端编辑与下载。
+
+当前状态：**53 项单测 + 7 项 E2E 全绿**。
 
 ---
 
 ## 8. 与博客集成
 
-最省事的方式是在博客文章/导航里放一个入口，`OFFICE_BLOG_URL` 反过来指回博客：
+一条命令把入口接进博客（幂等，可重复执行）：
 
-```html
-<a href="https://office.example.com" target="_blank" rel="noopener">在线办公工具</a>
+```bash
+node deploy/patch-blog.mjs --blog /path/to/blog --url https://office.example.com --dry-run  # 先看要改什么
+node deploy/patch-blog.mjs --blog /path/to/blog --url https://office.example.com            # 实际写入
 ```
 
-想嵌进页面用 iframe 也可以，应用已允许同源嵌入（`X-Frame-Options: SAMEORIGIN`）；跨域嵌入需要把博客域名加进 `server/src/index.js` 的 CSP `frame-ancestors`。
+它会做三件事，任何一处已存在标记就跳过：
+
+1. `DesignHomepage.tsx` —— hero 快捷入口追加「在线办公」卡片
+2. `HomepageContent.tsx` —— 顶部导航追加「办公」
+3. `tests/homepage.test.mjs` —— 快捷卡片数量断言 4 → 5
+
+博客侧只需再加一个环境变量：
+
+```dotenv
+NEXT_PUBLIC_OFFICE_URL=https://office.example.com
+```
+
+也可以直接放链接或 iframe：应用已允许同源嵌入（`X-Frame-Options: SAMEORIGIN`）；跨域嵌入需要把博客域名加进 `server/src/index.js` 的 CSP `frame-ancestors`。
 
 ---
 

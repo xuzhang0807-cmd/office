@@ -15,9 +15,11 @@ ENV NODE_ENV=production \
     OFFICE_PORT=32110 \
     OFFICE_DATA_DIR=/data
 
-# 中文字体：PDF 水印/标题需要嵌入 CJK 字形，否则只能退化为 ASCII
+# 中文字体：PDF 水印/标题需要嵌入 CJK 字形，否则只能退化为 ASCII。
+# 选 TrueType(glyf) 的文泉驿而不是 Noto CJK：后者是 CFF 轮廓，fontkit 的
+# CFFSubset 在 subset 时会在异步队列里抛 RangeError 直接打挂进程。
 RUN apt-get update \
- && apt-get install -y --no-install-recommends fonts-noto-cjk \
+ && apt-get install -y --no-install-recommends fonts-wqy-zenhei \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

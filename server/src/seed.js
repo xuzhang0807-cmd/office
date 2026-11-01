@@ -368,75 +368,91 @@ export async function seedTemplates({ force = false } = {}) {
   if (existing.length && !force) return { created: 0, skipped: existing.length };
 
   let created = 0;
+  const failed = [];
+  /** 单个模板失败不能拖垮整批：记下来继续，下次启动会补。 */
+  const guard = async (label, fn) => {
+    try {
+      await fn();
+      created += 1;
+    } catch (error) {
+      failed.push(`${label}: ${error.message}`);
+      console.error(`[office] 模板生成失败 ${label}:`, error.message);
+    }
+  };
+
   for (const tpl of DOCX_TEMPLATES) {
-    const buffer = await htmlToDocxBuffer(tpl.html, { title: tpl.title });
-    const stored = blobs.storeContent(buffer, 'docx');
-    store.upsertTemplate({
-      slug: tpl.slug,
-      kind: 'docx',
-      title: tpl.title,
-      category: tpl.category,
-      description: tpl.description,
-      tags: tpl.tags,
-      blobKey: stored.key,
-      preview: previewFromHtml(tpl.html),
-      size: buffer.length,
-      featured: tpl.featured,
+    await guard(tpl.slug, async () => {
+      const buffer = await htmlToDocxBuffer(tpl.html, { title: tpl.title });
+      const stored = blobs.storeContent(buffer, 'docx');
+      store.upsertTemplate({
+        slug: tpl.slug,
+        kind: 'docx',
+        title: tpl.title,
+        category: tpl.category,
+        description: tpl.description,
+        tags: tpl.tags,
+        blobKey: stored.key,
+        preview: previewFromHtml(tpl.html),
+        size: buffer.length,
+        featured: tpl.featured,
+      });
     });
-    created += 1;
   }
   for (const tpl of XLSX_TEMPLATES) {
-    const buffer = await modelToXlsxBuffer({ sheets: tpl.sheets });
-    const stored = blobs.storeContent(buffer, 'xlsx');
-    store.upsertTemplate({
-      slug: tpl.slug,
-      kind: 'xlsx',
-      title: tpl.title,
-      category: tpl.category,
-      description: tpl.description,
-      tags: tpl.tags,
-      blobKey: stored.key,
-      preview: previewFromSheets(tpl.sheets),
-      size: buffer.length,
-      featured: tpl.featured,
+    await guard(tpl.slug, async () => {
+      const buffer = await modelToXlsxBuffer({ sheets: tpl.sheets });
+      const stored = blobs.storeContent(buffer, 'xlsx');
+      store.upsertTemplate({
+        slug: tpl.slug,
+        kind: 'xlsx',
+        title: tpl.title,
+        category: tpl.category,
+        description: tpl.description,
+        tags: tpl.tags,
+        blobKey: stored.key,
+        preview: previewFromSheets(tpl.sheets),
+        size: buffer.length,
+        featured: tpl.featured,
+      });
     });
-    created += 1;
   }
   for (const tpl of PPTX_TEMPLATES) {
-    const model = outlineToModel(tpl.outline, tpl.theme);
-    const buffer = await modelToPptxBuffer(model, { title: tpl.title });
-    const stored = blobs.storeContent(buffer, 'pptx');
-    store.upsertTemplate({
-      slug: tpl.slug,
-      kind: 'pptx',
-      title: tpl.title,
-      category: tpl.category,
-      description: tpl.description,
-      tags: tpl.tags,
-      blobKey: stored.key,
-      preview: `${tpl.outline.slides.length + 1} 页 · 主题 ${tpl.theme}`,
-      size: buffer.length,
-      featured: tpl.featured,
+    await guard(tpl.slug, async () => {
+      const model = outlineToModel(tpl.outline, tpl.theme);
+      const buffer = await modelToPptxBuffer(model, { title: tpl.title });
+      const stored = blobs.storeContent(buffer, 'pptx');
+      store.upsertTemplate({
+        slug: tpl.slug,
+        kind: 'pptx',
+        title: tpl.title,
+        category: tpl.category,
+        description: tpl.description,
+        tags: tpl.tags,
+        blobKey: stored.key,
+        preview: `${tpl.outline.slides.length + 1} 页 · 主题 ${tpl.theme}`,
+        size: buffer.length,
+        featured: tpl.featured,
+      });
     });
-    created += 1;
   }
   for (const tpl of PDF_TEMPLATES) {
-    const buffer = await createPdf(tpl.options);
-    const stored = blobs.storeContent(buffer, 'pdf');
-    store.upsertTemplate({
-      slug: tpl.slug,
-      kind: 'pdf',
-      title: tpl.title,
-      category: tpl.category,
-      description: tpl.description,
-      tags: tpl.tags,
-      blobKey: stored.key,
-      preview: 'A4 · 1 页',
-      size: buffer.length,
+    await guard(tpl.slug, async () => {
+      const buffer = await createPdf(tpl.options);
+      const stored = blobs.storeContent(buffer, 'pdf');
+      store.upsertTemplate({
+        slug: tpl.slug,
+        kind: 'pdf',
+        title: tpl.title,
+        category: tpl.category,
+        description: tpl.description,
+        tags: tpl.tags,
+        blobKey: stored.key,
+        preview: 'A4 · 1 页',
+        size: buffer.length,
+      });
     });
-    created += 1;
   }
-  return { created, skipped: 0 };
+  return { created, skipped: 0, failed };
 }
 
 function previewFromHtml(html) {

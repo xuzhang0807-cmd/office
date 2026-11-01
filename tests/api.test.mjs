@@ -359,6 +359,26 @@ describe('模板与素材库', () => {
     assert.equal(removed.status, 200);
   });
 
+  it('素材标签按作用域统计，不泄露他人标签', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4GBgYkBBIAAAB0gAgH8sO0WAAAAAElFTkSuQmCC',
+      'base64',
+    );
+    const form = new FormData();
+    form.append('file', new Blob([png], { type: 'image/png' }), 'tag.png');
+    form.append('tags', '私有标签');
+    const up = await c.upload('/api/assets', form);
+    assert.equal(up.status, 201);
+
+    const mine = await c.get('/api/assets');
+    assert.ok(mine.body.data.tags.some((t) => t.name === '私有标签'));
+
+    const stranger = client();
+    await stranger.post('/api/auth/register', { email: `tag-${Date.now()}@example.com`, password: 'password123' });
+    const other = await stranger.get('/api/assets');
+    assert.ok(!other.body.data.tags.some((t) => t.name === '私有标签'), '他人标签不应出现在列表里');
+  });
+
   it('拒绝非图片上传', async () => {
     const form = new FormData();
     form.append('file', new Blob([Buffer.from('not an image')]), 'x.png');

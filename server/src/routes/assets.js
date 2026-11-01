@@ -36,6 +36,7 @@ assetsRouter.get(
   asyncRoute(async (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit) || 48, 1), 120);
     const page = Math.max(Number(req.query.page) || 1, 1);
+    const includeShared = req.query.mine !== '1';
     const { items, total } = store.listAssets({
       ...scope(req),
       kind: req.query.kind ? String(req.query.kind) : undefined,
@@ -43,20 +44,15 @@ assetsRouter.get(
       tag: req.query.tag ? String(req.query.tag) : undefined,
       limit,
       offset: (page - 1) * limit,
-      includeShared: req.query.mine !== '1',
+      includeShared,
     });
-    const tags = new Map();
-    for (const asset of store.listAllAssets({ limit: 500 })) {
-      for (const tag of String(asset.tags || '').split(',').filter(Boolean)) {
-        tags.set(tag, (tags.get(tag) || 0) + 1);
-      }
-    }
+    const tags = store.listAssetTags({ ...scope(req), includeShared });
     ok(res, {
       assets: items.map(publicAsset),
       total,
       page,
       pages: Math.max(Math.ceil(total / limit), 1),
-      tags: [...tags.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([name, count]) => ({ name, count })),
+      tags,
     });
   }),
 );
