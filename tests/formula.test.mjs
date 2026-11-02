@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { evaluateFormula, indexToCol, parseRef, recalcSheet, refOf } from '../web/src/lib/formula.js';
+import { evaluateFormula, indexToCol, parseRef, recalcSheet, refOf } from '../portal/web/src/lib/formula.js';
 
 function sheetWith(rows) {
   return { name: 'S', rows };

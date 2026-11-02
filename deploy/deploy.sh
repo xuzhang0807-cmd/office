@@ -35,5 +35,5 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 
-echo "[deploy] 健康检查超时，查看日志：docker compose logs --tail=80 office"
+echo "[deploy] 健康检查超时，查看日志：docker compose logs --tail=80 portal"
 exit 1

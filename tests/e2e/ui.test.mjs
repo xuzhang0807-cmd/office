@@ -5,26 +5,23 @@ import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'office-ui-'));
-process.env.OFFICE_DATA_DIR = path.join(TMP, 'data');
-process.env.OFFICE_DB_PATH = path.join(TMP, 'data', 'ui.db');
 
-const { start } = await import('../../server/src/index.js');
+const { startStack } = await import('../helpers/stack.mjs');
 const { chromium } = await import('playwright');
 
-let server;
+let stack;
 let base;
 let browser;
 let context;
 let page;
 
-async function apiLogin(request, email, password) {
-  const res = await request.post(`${base}/api/auth/login`, { data: { email, password } });
-  assert.equal(res.status(), 200, await res.text());
-}
-
 before(async () => {
-  server = await start({ port: 0, host: '127.0.0.1' });
-  base = `http://127.0.0.1:${server.address().port}`;
+  stack = await startStack({
+    dataDir: path.join(TMP, 'data'),
+    env: { OFFICE_MUSE_KEY: 'test-key' },
+    basePort: 32600,
+  });
+  base = stack.base;
   browser = await chromium.launch({ args: ['--no-sandbox'] });
   context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   page = await context.newPage();
@@ -38,7 +35,7 @@ before(async () => {
 
 after(async () => {
   await browser?.close();
-  await new Promise((resolve) => server.close(resolve));
+  await stack?.close();
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 

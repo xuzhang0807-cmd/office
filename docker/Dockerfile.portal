@@ -1,0 +1,51 @@
+# 门户镜像：只含 portal + shared + 前端产物。
+# 不含任何转换器——格式处理全部交给能力服务。
+
+# syntax=docker/dockerfile:1.7
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY tools/prune-workspaces.mjs ./tools/prune-workspaces.mjs
+COPY shared/package.json ./shared/package.json
+COPY portal/package.json ./portal/package.json
+COPY portal/web/package.json ./portal/web/package.json
+RUN node tools/prune-workspaces.mjs "shared,portal,portal/web" \
+ && npm ci --no-audit --no-fund
+
+COPY shared ./shared
+COPY portal ./portal
+RUN npm --workspace @office/web run build
+
+FROM node:24-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    OFFICE_HOST=0.0.0.0 \
+    OFFICE_PORT=32110 \
+    OFFICE_DATA_DIR=/data
+
+COPY package.json package-lock.json ./
+COPY tools/prune-workspaces.mjs ./tools/prune-workspaces.mjs
+COPY shared/package.json ./shared/package.json
+COPY portal/package.json ./portal/package.json
+COPY portal/web/package.json ./portal/web/package.json
+RUN node tools/prune-workspaces.mjs "shared,portal,portal/web" \
+ && npm ci --omit=dev --no-audit --no-fund \
+ && npm cache clean --force
+
+COPY shared ./shared
+COPY portal/src ./portal/src
+COPY tools ./tools
+COPY --from=build /app/portal/web/dist ./portal/web/dist
+
+# 数据目录预建并交给 office；compose 里用 bind mount（不用命名卷）避免
+# 首次挂载归 root 导致 "readonly database"。这里仍 chown 一遍兜底。
+RUN mkdir -p /data \
+ && useradd -r -u 10001 -m office \
+ && chown -R office:office /data /app
+USER office
+EXPOSE 32110
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node tools/healthcheck.mjs
+
+CMD ["node", "portal/src/index.js"]

@@ -1,0 +1,19 @@
+{
+  "name": "@office/pptx",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "PPTX 能力服务：幻灯片模型 ⇄ PowerPoint 文件",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@office/shared": "*",
+    "fast-xml-parser": "5.11.2",
+    "jszip": "3.10.2",
+    "pptxgenjs": "4.0.1"
+  }
+}

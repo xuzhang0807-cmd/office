@@ -1,0 +1,129 @@
+name: office
+
+# 模块化部署：portal + 4 个独立能力服务，每个都是自己的容器。
+# 任何一个能力都能单独重启/升级/替换（改 image 或改 OFFICE_*_URL 指到别处）。
+#
+# 只跑某个能力：docker compose up -d docx
+# 换实现：把 docx 服务换成任意守住 /rpc 协议的东西，改 OFFICE_DOCX_URL 即可。
+
+x-hardening: &hardening
+  init: true
+  restart: unless-stopped
+  security_opt: [no-new-privileges:true]
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: "3" }
+
+services:
+  docx:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args: { SERVICE: docx }
+    image: office-docx:${IMAGE_TAG:-latest}
+    container_name: office-docx
+    environment:
+      OFFICE_DOCX_PORT: "32201"
+    expose: ["32201"]
+    networks: [default]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777"]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    pids_limit: 128
+
+  xlsx:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args: { SERVICE: xlsx }
+    image: office-xlsx:${IMAGE_TAG:-latest}
+    container_name: office-xlsx
+    environment:
+      OFFICE_XLSX_PORT: "32202"
+    expose: ["32202"]
+    networks: [default]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777"]
+    cap_drop: [ALL]
+    mem_limit: 320m
+    pids_limit: 128
+
+  pptx:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args: { SERVICE: pptx }
+    image: office-pptx:${IMAGE_TAG:-latest}
+    container_name: office-pptx
+    environment:
+      OFFICE_PPTX_PORT: "32203"
+    expose: ["32203"]
+    networks: [default]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777"]
+    cap_drop: [ALL]
+    mem_limit: 320m
+    pids_limit: 128
+
+  pdf:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args: { SERVICE: pdf }
+    image: office-pdf:${IMAGE_TAG:-latest}
+    container_name: office-pdf
+    environment:
+      OFFICE_PDF_PORT: "32204"
+      OFFICE_PDF_FONT_CACHE: /tmp/office-pdf-fonts
+    expose: ["32204"]
+    networks: [default]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777"]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    pids_limit: 256
+
+  portal:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.portal
+    image: office-portal:${IMAGE_TAG:-latest}
+    container_name: office-portal
+    env_file: [.env]
+    environment:
+      NODE_ENV: production
+      OFFICE_HOST: 0.0.0.0
+      OFFICE_PORT: "32110"
+      OFFICE_DATA_DIR: /data
+      OFFICE_DOCX_URL: http://docx:32201
+      OFFICE_XLSX_URL: http://xlsx:32202
+      OFFICE_PPTX_URL: http://pptx:32203
+      OFFICE_PDF_URL: http://pdf:32204
+      OFFICE_MUSE_BASE: ${OFFICE_MUSE_BASE_DOCKER:-http://muse2api:18610}
+      OFFICE_MUSE_KEY: ${OFFICE_MUSE_KEY:-}
+    volumes:
+      # bind mount 而不是命名卷：命名卷首次创建归 root，uid 10001 写不进 SQLite。
+      - ./data:/data
+    ports: ["127.0.0.1:${OFFICE_HOST_PORT:-32110}:32110"]
+    networks: [default, muse]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777"]
+    cap_drop: [ALL]
+    mem_limit: 384m
+    pids_limit: 256
+    depends_on: [docx, xlsx, pptx, pdf]
+
+volumes: {}
+
+networks:
+  default:
+    name: ${OFFICE_NETWORK:-office_default}
+  muse:
+    external: true
+    name: ${MUSE_NETWORK:-muse2api_default}

@@ -2,11 +2,13 @@ node_modules
 **/node_modules
 data
 web/dist
+**/dist
 .git
 .gitignore
 .shots
 .tmp
 tests
+**/test
 *.log
 .env
 .env.*

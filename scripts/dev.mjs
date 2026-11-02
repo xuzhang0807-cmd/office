@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-/** 并行起后端与前端 dev server，Ctrl-C 一起收掉。 */
+/**
+ * 并行起后端与前端 dev server，Ctrl-C 一起收掉。
+ * 现在后端是「4 个能力服务 + 门户」，统一交给 scripts/stack.mjs。
+ */
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
@@ -31,9 +34,9 @@ function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-run('server', process.execPath, ['--watch', 'server/src/index.js'], { OFFICE_PORT: process.env.OFFICE_PORT || '32110' });
-run('web', process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), '--config', 'web/vite.config.js'], {
+run('stack', process.execPath, ['scripts/stack.mjs'], {});
+run('web', process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), '--config', 'portal/web/vite.config.js'], {
   OFFICE_API_TARGET: `http://127.0.0.1:${process.env.OFFICE_PORT || '32110'}`,
 });
 
-console.log('[dev] 前端 http://127.0.0.1:32111 · 后端 http://127.0.0.1:32110');
+console.log('[dev] 前端 http://127.0.0.1:32111 · 门户 http://127.0.0.1:32110');

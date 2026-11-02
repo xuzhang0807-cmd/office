@@ -1,0 +1,45 @@
+# 能力服务通用镜像：一个 Dockerfile 通过 ARG 构建 docx/xlsx/pptx/pdf 四个服务之一。
+# 用法：docker build --build-arg SERVICE=docx -f docker/Dockerfile.service .
+# 这样四个服务共享同一套构建流程，但产物完全独立，可分别部署到不同机器。
+
+# syntax=docker/dockerfile:1.7
+FROM node:24-bookworm-slim AS base
+WORKDIR /app
+ENV NODE_ENV=production
+
+ARG SERVICE=docx
+
+# 根 package.json 声明了 6 个 workspace，npm ci 会因缺文件失败；
+# 所以用 tools/prune-workspaces.mjs 只保留 shared + 当前服务。
+COPY package.json package-lock.json ./
+COPY tools/prune-workspaces.mjs ./tools/prune-workspaces.mjs
+COPY shared/package.json ./shared/package.json
+COPY ${SERVICE}/package.json ./${SERVICE}/package.json
+
+RUN node tools/prune-workspaces.mjs "shared,${SERVICE}" \
+ && npm ci --omit=dev --no-audit --no-fund \
+ && npm cache clean --force
+
+COPY shared ./shared
+COPY ${SERVICE} ./${SERVICE}
+COPY tools ./tools
+
+# PDF 服务需要 CJK 字体（TrueType 的文泉驿，Noto CJK 是 CFF 会打挂 fontkit）
+RUN apt-get update \
+ && if [ "$SERVICE" = "pdf" ]; then apt-get install -y --no-install-recommends fonts-wqy-zenhei; fi \
+ && rm -rf /var/lib/apt/lists/*
+
+# 能力服务无状态，直接以非 root 运行。
+# 不用 gosu 降权：容器开了 cap_drop: ALL，setuid 也被丢掉，切换用户会 EPERM。
+RUN useradd -r -u 10001 -m office \
+ && mkdir -p /tmp/office-pdf-fonts \
+ && chown -R office:office /app /tmp/office-pdf-fonts
+USER office
+
+ENV OFFICE_PDF_FONT_CACHE=/tmp/office-pdf-fonts
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node tools/healthcheck.mjs
+
+ENV SERVICE=${SERVICE}
+CMD ["sh", "-c", "exec node ${SERVICE}/src/index.js"]
